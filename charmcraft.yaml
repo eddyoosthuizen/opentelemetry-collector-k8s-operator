@@ -182,6 +182,35 @@ config:
         Toggle forwarding of alert rules.
       type: boolean
       default: true
+    syslog_endpoints:
+      description: |
+        Syslog server endpoints to forward logs to, in YAML format.
+        Each endpoint can have different protocol, network, and TLS settings.
+        If not set, syslog forwarding is disabled.
+
+        Format (YAML list):
+          syslog_endpoints: |
+            - endpoint: rsyslog1.example.com:514
+              protocol: rfc5424  # optional, default: rfc5424
+              network: tcp       # optional, default: tcp
+              tls_enabled: false # optional, default: false
+            - endpoint: rsyslog2.example.com:6514
+              protocol: rfc5424
+              network: tcp
+              tls_enabled: true
+
+        Single endpoint example:
+          syslog_endpoints: |
+            - endpoint: rsyslog.example.com:514
+
+        Field descriptions:
+          - endpoint (required): Syslog server in "host:port" format
+          - protocol (optional): Message format - "rfc5424" (modern, recommended) or "rfc3164" (legacy BSD)
+          - network (optional): Transport protocol - "tcp" (reliable) or "udp" (faster but may lose packets)
+          - tls_enabled (optional): Enable TLS encryption (true/false)
+
+        Reference: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/syslogexporter
+      type: string
     tls_insecure_skip_verify:
       description: |
         Flag to skip the validation of certificates from servers we connect to with TLS.

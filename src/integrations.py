@@ -148,6 +148,99 @@ def send_loki_logs(charm: CharmBase) -> List[Dict]:
     return loki_consumer.loki_endpoints
 
 
+def send_syslog(charm: CharmBase) -> List[Dict]:
+    """Integrate with syslog servers via Juju config options.
+
+    This function reads syslog configuration from charm config and returns
+    endpoint information in a format suitable for the syslog exporter.
+
+    Unlike relation-based integrations, syslog configuration comes from
+    static charm config options rather than Juju relations.
+
+    Configuration format (YAML):
+        syslog_endpoints: |
+          - endpoint: rsyslog1.example.com:514
+            protocol: rfc5424  # optional, default: rfc5424
+            network: tcp       # optional, default: tcp
+            tls_enabled: false # optional, default: false
+          - endpoint: rsyslog2.example.com:6514
+            protocol: rfc5424
+            network: tcp
+            tls_enabled: true
+
+    Returns:
+        A list of dictionaries with syslog endpoint configurations, for instance:
+        [
+            {
+                "endpoint": "rsyslog1.example.com:514",
+                "protocol": "rfc5424",
+                "network": "tcp",
+                "tls_enabled": false
+            },
+            {
+                "endpoint": "rsyslog2.example.com:6514",
+                "protocol": "rfc5424",
+                "network": "tcp",
+                "tls_enabled": true
+            }
+        ]
+
+        Returns an empty list if no syslog endpoints are configured or if parsing fails.
+    """
+    syslog_endpoints_yaml = charm.config.get("syslog_endpoints")
+
+    # If not configured, return empty list
+    if not syslog_endpoints_yaml:
+        return []
+
+    # Parse YAML configuration
+    try:
+        endpoints_config = yaml.safe_load(syslog_endpoints_yaml)
+    except yaml.YAMLError as e:
+        logger.error("Failed to parse syslog_endpoints YAML: %s", e)
+        return []
+
+    # Validate that we got a list
+    if not isinstance(endpoints_config, list):
+        logger.error(
+            "syslog_endpoints must be a YAML list, got %s", type(endpoints_config).__name__
+        )
+        return []
+
+    # Process each endpoint with defaults
+    result = []
+    for idx, endpoint_config in enumerate(endpoints_config):
+        # Validate that each item is a dictionary
+        if not isinstance(endpoint_config, dict):
+            logger.warning(
+                "Skipping syslog endpoint #%d: expected dict, got %s",
+                idx,
+                type(endpoint_config).__name__,
+            )
+            continue
+
+        # Endpoint is required
+        endpoint = endpoint_config.get("endpoint")
+        if not endpoint:
+            logger.warning("Skipping syslog endpoint #%d: missing required 'endpoint' field", idx)
+            continue
+
+        # Apply defaults for optional fields
+        # RFC5424: Modern syslog format with structured data support (recommended)
+        # TCP: Reliable transport (critical for security logs)
+        # TLS: Disabled by default (plain TCP/UDP)
+        result.append(
+            {
+                "endpoint": str(endpoint).strip(),
+                "protocol": endpoint_config.get("protocol", "rfc5424"),
+                "network": endpoint_config.get("network", "tcp"),
+                "tls_enabled": endpoint_config.get("tls_enabled", False),
+            }
+        )
+
+    return result
+
+
 def key_value_pair_string_to_dict(key_value_pair: str) -> dict:
     """Transform a comma-separated key-value pairs into a dict."""
     result = {}
